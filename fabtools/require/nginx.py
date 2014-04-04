@@ -5,7 +5,7 @@ Nginx
 This module provides high-level tools for installing the `nginx`_
 web server and managing the configuration of web sites.
 
-.. nginx: http://nginx.org/
+.. _nginx: http://nginx.org/
 
 """
 from __future__ import with_statement
@@ -17,6 +17,7 @@ from fabric.api import (
 )
 from fabric.colors import red
 
+from fabtools.deb import is_installed
 from fabtools.files import is_link
 from fabtools.nginx import disable, enable
 from fabtools.require.deb import package
@@ -26,24 +27,36 @@ from fabtools.service import reload as reload_service
 from fabtools.utils import run_as_root
 
 
-def server():
+def server(package_name='nginx'):
     """
-    Require nginx server to be installed and running.
+    Require the nginx web server to be installed and running.
+
+    You can override the system package name, if you need to install
+    a specific variant such as `nginx-extras` or `nginx-light`.
 
     ::
 
         from fabtools import require
 
         require.nginx.server()
+
     """
-    package('nginx')
+    package(package_name)
     require_started('nginx')
 
 
 def enabled(config):
     """
-    Ensure link to /etc/nginx/sites-available/config exists and reload nginx
-    configuration if needed.
+    Require an nginx site to be enabled.
+
+    This will cause nginx to reload its configuration.
+
+    ::
+
+        from fabtools import require
+
+        require.nginx.enabled('mysite')
+
     """
     enable(config)
     reload_service('nginx')
@@ -51,8 +64,16 @@ def enabled(config):
 
 def disabled(config):
     """
-    Ensure link to /etc/nginx/sites-available/config doesn't exist and reload
-    nginx configuration if needed.
+    Require an nginx site to be disabled.
+
+    This will cause nginx to reload its configuration.
+
+    ::
+
+        from fabtools import require
+
+        require.nginx.site_disabled('default')
+
     """
     disable(config)
     reload_service('nginx')
@@ -79,7 +100,8 @@ def site(server_name, template_contents=None, template_source=None,
             access_log  /var/log/nginx/%(server_name)s.log;
         }'''
 
-        require.nginx.site('example.com', template_contents=CONFIG_TPL,
+        require.nginx.site('example.com',
+            template_contents=CONFIG_TPL,
             port=80,
             server_alias='www.example.com',
             docroot='/var/www/mysite',
@@ -87,7 +109,9 @@ def site(server_name, template_contents=None, template_source=None,
 
     .. seealso:: :py:func:`fabtools.require.files.template_file`
     """
-    server()
+    if not is_installed('nginx-common'):
+        # nginx-common is always installed if nginx exists
+        server()
 
     config_filename = '/etc/nginx/sites-available/%s.conf' % server_name
 
@@ -107,7 +131,7 @@ def site(server_name, template_contents=None, template_source=None,
         # Make sure we don't break the config
         if check_config:
             with settings(hide('running', 'warnings'), warn_only=True):
-                if run_as_root("nginx -t").return_code > 0:
+                if run_as_root('nginx -t').failed:
                     run_as_root("rm %(link_filename)s" % locals())
                     message = red("Error in %(server_name)s nginx site config (disabling for safety)" % locals())
                     abort(message)

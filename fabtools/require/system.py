@@ -6,11 +6,12 @@ from __future__ import with_statement
 
 from re import escape
 
-from fabric.api import warn, shell_env
+from fabric.api import settings, warn
 from fabric.contrib.files import append, uncomment
 
 from fabtools.files import is_file, watch
 from fabtools.system import (
+    UnsupportedFamily,
     distrib_family, distrib_id,
     get_hostname, set_hostname,
     get_sysctl, set_sysctl,
@@ -37,7 +38,8 @@ def sysctl(key, value, persist=True):
                          use_sudo=True)
         if config.changed:
             if distrib_family() == 'debian':
-                run_as_root('service procps start')
+                with settings(warn_only=True):
+                    run_as_root('service procps start')
 
 
 def hostname(name):
@@ -53,10 +55,12 @@ def locales(names):
     Require the list of locales to be available.
     """
 
-    config_file = '/var/lib/locales/supported.d/local'
-
-    if not is_file(config_file):
-        config_file = '/etc/locale.gen'
+    if distrib_id() == "Ubuntu":
+        config_file = '/var/lib/locales/supported.d/local'
+        if not is_file(config_file):
+            run_as_root('touch %s' % config_file)
+    else:
+         config_file = '/etc/locale.gen'
 
     # Regenerate locales if config file changes
     with watch(config_file, use_sudo=True) as config:
@@ -67,17 +71,19 @@ def locales(names):
             if name in supported:
                 charset = supported[name]
                 locale = "%s %s" % (name, charset)
-                with shell_env():
-                    uncomment(config_file, escape(locale), use_sudo=True)
-                    append(config_file, locale, use_sudo=True, partial=True)
+                uncomment(config_file, escape(locale), use_sudo=True, shell=True)
+                append(config_file, locale, use_sudo=True, partial=True, shell=True)
             else:
                 warn('Unsupported locale name "%s"' % name)
 
     if config.changed:
-        if distrib_id() == "Archlinux":
+        family = distrib_family()
+        if family == 'debian':
+            run_as_root('dpkg-reconfigure --frontend=noninteractive locales')
+        elif family in ['arch', 'gentoo']:
             run_as_root('locale-gen')
         else:
-            run_as_root('dpkg-reconfigure --frontend=noninteractive locales')
+            raise UnsupportedFamily(supported=['debian', 'arch', 'gentoo'])
 
 
 def locale(name):

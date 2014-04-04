@@ -17,7 +17,7 @@ from fabtools.files import is_link
 from fabtools.system import get_arch
 
 
-DEFAULT_VERSION = '7u21-b11'
+DEFAULT_VERSION = '7u25-b15'
 
 
 def install_from_oracle_site(version=DEFAULT_VERSION):
@@ -53,7 +53,7 @@ def install_from_oracle_site(version=DEFAULT_VERSION):
 
     with cd('/tmp'):
         run('rm -rf %s' % jdk_filename)
-        run('wget --no-cookies --header="Cookie: gpw_e24=a" ' +
+        run('wget --header "Cookie: oraclelicense=accept-securebackup-cookie" ' +
             '--progress=dot:mega ' +
             '%(jdk_url)s -O /tmp/%(jdk_filename)s' % locals())
 
@@ -122,9 +122,10 @@ def _extract_jdk_version(java_version_out):
     Extracts JDK version in format like '7u13-b20'
     from 'java -version' command output.
     """
-    re_build = re.search(r'Runtime Environment \(build (.*?)\)',
-                         java_version_out).group(1)
-    version, build = re_build.split('-')
+    match = re.search(r'Runtime Environment \(build (.*?)\)', java_version_out)
+    if match is None:
+        return None
+    version, build = match.group(1).split('-')
     release = version.split('_')[0].split('.')[1]
     update = str(int(version.split('_')[1]))
     return '%(release)su%(update)s-%(build)s' % locals()

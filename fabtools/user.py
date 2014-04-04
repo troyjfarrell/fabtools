@@ -9,7 +9,7 @@ import posixpath
 import random
 import string
 
-from fabric.api import hide, run, settings, sudo
+from fabric.api import hide, run, settings, sudo, local
 
 from fabtools.group import (
     exists as _group_exists,
@@ -110,7 +110,7 @@ def create(name, comment=None, home=None, create_home=None, skeleton_dir=None,
     if shell:
         args.append('-s %s' % quote(shell))
     if uid:
-        args.append('-u %s' % quote(uid))
+        args.append('-u %s' % uid)
         if non_unique:
             args.append('-o')
     args.append(name)

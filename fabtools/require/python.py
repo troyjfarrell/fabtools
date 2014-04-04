@@ -2,86 +2,95 @@
 Python environments and packages
 ================================
 
-This module includes tools for using `virtual environments`_
-and installing packages using `pip`_.
+This module provides high-level tools for using Python `virtual environments`_
+and installing Python packages using the `pip`_ installer.
 
 .. _virtual environments: http://www.virtualenv.org/
 .. _pip: http://www.pip-installer.org/
 
 """
-import posixpath
 
-from fabric.api import run, sudo
-
-from fabtools.files import is_file
 from fabtools.python import (
+    create_virtualenv,
     install,
     install_pip,
     install_requirements,
     is_installed,
     is_pip_installed,
+    virtualenv_exists,
 )
-from fabtools.python_distribute import (
-    install_distribute,
-    is_distribute_installed,
+from fabtools.python_setuptools import (
+    install_setuptools,
+    is_setuptools_installed,
 )
-from fabtools.system import distrib_family
+from fabtools.system import UnsupportedFamily, distrib_family
 
 
-DEFAULT_PIP_VERSION = '1.3.1'
+MIN_SETUPTOOLS_VERSION = '0.7'
+MIN_PIP_VERSION = '1.5'
 
 
-def distribute():
+def setuptools(version=MIN_SETUPTOOLS_VERSION, python_cmd='python'):
     """
-    Require `distribute`_ to be installed.
+    Require `setuptools`_ to be installed.
 
-    .. _distribute: http://packages.python.org/distribute/
+    If setuptools is not installed, or if a version older than *version*
+    is installed, the latest version will be installed.
+
+    .. _setuptools: http://pythonhosted.org/setuptools/
     """
 
-    from fabtools.require.deb import packages as require_deb_packages
-    from fabtools.require.rpm import packages as require_rpm_packages
+    from fabtools.require.deb import package as require_deb_package
+    from fabtools.require.rpm import package as require_rpm_package
 
-    family = distrib_family()
+    if not is_setuptools_installed(python_cmd=python_cmd):
+        family = distrib_family()
 
-    if family == 'debian':
-        require_deb_packages([
-            'curl',
-            'python-dev',
-        ])
+        if family == 'debian':
+            require_deb_package('python-dev')
+        elif family == 'redhat':
+            require_rpm_package('python-devel')
+        else:
+            raise UnsupportedFamily(supported=['debian', 'redhat'])
 
-    elif family == 'redhat':
-
-        require_rpm_packages([
-            'curl',
-            'python-devel',
-        ])
-
-    if not is_distribute_installed():
-        install_distribute()
+        install_setuptools(python_cmd=python_cmd)
 
 
-def pip(version=None):
+def pip(version=MIN_PIP_VERSION, pip_cmd='pip', python_cmd='python'):
     """
     Require `pip`_ to be installed.
+
+    If pip is not installed, or if a version older than *version*
+    is installed, the latest version will be installed.
+
+    .. _pip: http://www.pip-installer.org/
     """
-    distribute()
-    if not is_pip_installed(version):
-        install_pip()
+    setuptools(python_cmd=python_cmd)
+    if not is_pip_installed(version, pip_cmd=pip_cmd):
+        install_pip(python_cmd=python_cmd)
 
 
-def package(pkg_name, url=None, **kwargs):
+def package(pkg_name, url=None, pip_cmd='pip', python_cmd='python',
+            allow_external=False, allow_unverified=False, **kwargs):
     """
     Require a Python package.
 
     If the package is not installed, it will be installed
     using the `pip installer`_.
 
+    Package names are case insensitive.
+
+    Starting with version 1.5, pip no longer scrapes insecure external
+    urls by default and no longer installs externally hosted files by
+    default. Use ``allow_external=True`` or ``allow_unverified=True``
+    to change these behaviours.
+
     ::
 
         from fabtools.python import virtualenv
         from fabtools import require
 
-        # Install package system-wide
+        # Install package system-wide (not recommended)
         require.python.package('foo', use_sudo=True)
 
         # Install package in an existing virtual environment
@@ -90,33 +99,75 @@ def package(pkg_name, url=None, **kwargs):
 
     .. _pip installer: http://www.pip-installer.org/
     """
-    pip(DEFAULT_PIP_VERSION)
-    if not is_installed(pkg_name):
-        install(url or pkg_name, **kwargs)
+    pip(MIN_PIP_VERSION, python_cmd=python_cmd)
+    if not is_installed(pkg_name, pip_cmd=pip_cmd):
+        install(url or pkg_name,
+                pip_cmd=pip_cmd,
+                allow_external=[url or pkg_name] if allow_external else [],
+                allow_unverified=[url or pkg_name] if allow_unverified else [],
+                **kwargs)
 
 
-def packages(pkg_list, **kwargs):
+def packages(pkg_list, pip_cmd='pip', python_cmd='python',
+             allow_external=None, allow_unverified=None, **kwargs):
     """
     Require several Python packages.
+
+    Package names are case insensitive.
+
+    Starting with version 1.5, pip no longer scrapes insecure external
+    urls by default and no longer installs externally hosted files by
+    default. Use ``allow_external=['foo', 'bar']`` or
+    ``allow_unverified=['bar', 'baz']`` to change these behaviours
+    for specific packages.
     """
-    pip(DEFAULT_PIP_VERSION)
-    pkg_list = [pkg for pkg in pkg_list if not is_installed(pkg)]
+    if allow_external is None:
+        allow_external = []
+
+    if allow_unverified is None:
+        allow_unverified = []
+
+    pip(MIN_PIP_VERSION, python_cmd=python_cmd)
+
+    pkg_list = [pkg for pkg in pkg_list if not is_installed(pkg, pip_cmd=pip_cmd)]
     if pkg_list:
-        install(pkg_list, **kwargs)
+        install(pkg_list,
+                pip_cmd=pip_cmd,
+                allow_external=allow_external,
+                allow_unverified=allow_unverified,
+                **kwargs)
 
 
-def requirements(filename, **kwargs):
+def requirements(filename, pip_cmd='pip', python_cmd='python',
+                 allow_external=None, allow_unverified=None,  **kwargs):
     """
     Require Python packages from a pip `requirements file`_.
 
+    Starting with version 1.5, pip no longer scrapes insecure external
+    urls by default and no longer installs externally hosted files by
+    default. Use ``allow_external=['foo', 'bar']`` or
+    ``allow_unverified=['bar', 'baz']`` to change these behaviours
+    for specific packages.
+
+    ::
+
+        from fabtools.python import virtualenv
+        from fabtools import require
+
+        # Install requirements in an existing virtual environment
+        with virtualenv('/path/to/venv'):
+            require.python.requirements('requirements.txt')
+
     .. _requirements file: http://www.pip-installer.org/en/latest/requirements.html
     """
-    pip(DEFAULT_PIP_VERSION)
-    install_requirements(filename, **kwargs)
+    pip(MIN_PIP_VERSION, python_cmd=python_cmd)
+    install_requirements(filename, pip_cmd=pip_cmd, allow_external=allow_external,
+                         allow_unverified=allow_unverified, **kwargs)
 
 
-def virtualenv(directory, system_site_packages=False, python=None,
-               use_sudo=False, user=None, clear=False, prompt=None):
+def virtualenv(directory, system_site_packages=False, venv_python=None,
+               use_sudo=False, user=None, clear=False, prompt=None,
+               virtualenv_cmd='virtualenv', pip_cmd='pip', python_cmd='python'):
     """
     Require a Python `virtual environment`_.
 
@@ -128,20 +179,17 @@ def virtualenv(directory, system_site_packages=False, python=None,
 
     .. _virtual environment: http://www.virtualenv.org/
     """
-    package('virtualenv', use_sudo=True)
-    if not is_file(posixpath.join(directory, 'bin', 'python')):
-        options = ['--quiet']
-        if system_site_packages:
-            options.append('--system-site-packages')
-        if python:
-            options.append('--python=%s' % python)
-        if clear:
-            options.append('--clear')
-        if prompt:
-            options.append('--prompt="%s"' % prompt)
-        options = ' '.join(options)
-        command = 'virtualenv %(options)s "%(directory)s"' % locals()
-        if use_sudo:
-            sudo(command, user=user)
-        else:
-            run(command)
+
+    package('virtualenv', use_sudo=True, pip_cmd=pip_cmd, python_cmd=python_cmd)
+
+    if not virtualenv_exists(directory):
+        create_virtualenv(
+            directory,
+            system_site_packages=system_site_packages,
+            venv_python=venv_python,
+            use_sudo=use_sudo,
+            user=user,
+            clear=clear,
+            prompt=prompt,
+            virtualenv_cmd=virtualenv_cmd,
+        )

@@ -13,7 +13,15 @@ from fabric.api import hide, run, settings
 from fabtools.utils import run_as_root
 
 
-MANAGER = 'LC_ALL=C pacman'
+def pkg_manager():
+    with settings(hide('running', 'stdout', 'stderr', 'warnings'), warn_only=True):
+        output = run('which yaourt', warn_only=True)
+        if output.succeeded:
+            manager = 'yaourt'
+        else:
+            manager = 'pacman'
+
+        return 'LC_ALL=C %s' % manager
 
 
 def update_index(quiet=True):
@@ -21,7 +29,7 @@ def update_index(quiet=True):
     Update pacman package definitions.
     """
 
-    manager = MANAGER
+    manager = pkg_manager()
     if quiet:
         with settings(hide('running', 'stdout', 'stderr', 'warnings'), warn_only=True):
             run_as_root("%(manager)s -Sy" % locals())
@@ -33,24 +41,23 @@ def upgrade():
     """
     Upgrade all packages.
     """
-    manager = MANAGER
+    manager = pkg_manager()
     run_as_root("%(manager)s -Su" % locals(), pty=False)
 
 
 def is_installed(pkg_name):
     """
-    Check if a package is installed.
+    Check if an Archlinux package is installed.
     """
 
-    manager = MANAGER
     with settings(hide('running', 'stdout', 'stderr', 'warnings'), warn_only=True):
-        res = run("%(manager)s -Q %(pkg_name)s" % locals())
+        res = run("pacman -Q %(pkg_name)s" % locals())
         return res.succeeded
 
 
 def install(packages, update=False, options=None):
     """
-    Install one or more packages.
+    Install one or more Archlinux packages.
 
     If *update* is ``True``, the package definitions will be updated
     first, using :py:func:`~fabtools.arch.update_index`.
@@ -71,14 +78,13 @@ def install(packages, update=False, options=None):
         ])
 
     """
-    manager = MANAGER
+    manager = pkg_manager()
     if update:
         update_index()
     if options is None:
         options = []
     if not isinstance(packages, basestring):
         packages = " ".join(packages)
-    options.append("-q")
     options = " ".join(options)
     cmd = '%(manager)s -S %(options)s %(packages)s' % locals()
     run_as_root(cmd, pty=False)
@@ -86,11 +92,11 @@ def install(packages, update=False, options=None):
 
 def uninstall(packages, options=None):
     """
-    Remove one or more packages.
+    Remove one or more Archlinux packages.
 
     Extra *options* may be passed to ``pacman`` if necessary.
     """
-    manager = MANAGER
+    manager = pkg_manager()
     if options is None:
         options = []
     if not isinstance(packages, basestring):

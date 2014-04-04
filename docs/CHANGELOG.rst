@@ -1,6 +1,123 @@
 Changelog
 =========
 
+Version 0.18.0 (unreleased)
+---------------------------
+
+* Add drop_user and drop_database in ``postgres`` module
+* Add LinuxMint to the Debian family list (Frank Rousseau)
+* Add support for git remotes (Bryan Folliot)
+* Add support for Tomcat (Jan Kowalski)
+* Add support for Gentoo / portage (Travis Shirk)
+* Add support for Mercurial (Travis Shirk)
+* Add support for GVM (Groovy environment manager) (Bryan Folliot)
+* Documentation fixes and updates
+* MySQL improvements:
+  * do not require a password when a specific user is specified
+  * expose ``mysql.query`` in the public API
+* Switch to pip 1.5 in ``python`` modules (**warning**: you will need
+  to use the ``allow_external`` and/or ``allow_unverified`` options
+  to install packages not hosted on PyPI)
+* Add require.files.temporary_directory()
+
+
+Version 0.17.0 (2013-12-06)
+---------------------------
+
+* Vagrant improvements:
+    * Fix support for Vagrant >= 1.3.0
+    * Fix duplicate function in ``vagrant`` module documentation
+      (Dean Malmgren)
+* Package management improvements:
+    * Ubuntu PPA fixes (Anthony Scalisi)
+    * Add support for ``opkg`` package manager (ponty)
+    * Add conditional APT index updates, based on the time of the
+      last update (ponty)
+* Update ``files.upload_template`` to match Fabric parameters
+  (thanks to Adam Patterson)
+* PostgreSQL improvements:
+    * Fix: use ``run`` instead of ``sudo`` in ``_run_as_pg`` (iiie)
+    * Improve SmartOS and locale support (Andreas Kaiser)
+* Support tags in addition to branches in
+  ``require.git.working_copy`` (Andreas Kaiser)
+* Services management improvements:
+    * Improve upstart support in ``service.is_running`` (John MacKenzie)
+    * Add support for ``systemd`` in ``service.is_running``
+      (Adrien Raffin)
+* Improve support for Arch Linux in ``nodejs``, ``service`` and
+  ``supervisor`` modules (Steeve Chailloux)
+* Allow custom ``nginx`` package names (Laurent Meunier)
+* Add module management for Apache (Eugene Leonovich)
+* Fix test environment for Python 2.5
+* Use the new Read the Docs theme if available when
+  building the docs locally
+* Fix bug with user/group creation with int UID/GID
+
+
+Version 0.16.0 (2013-10-26)
+---------------------------
+
+* Redis improvements
+    * Make bind and port arguments explicit
+    * Improve documentation
+    * Upgrade default version to 2.6.16
+* Python improvements
+    * Improve support for using specific Python interpreters (**warning**:
+      API changes)
+    * Expose low-level virtualenv operations
+    * Improve pip installation
+    * Switch from distribute to setuptools 0.7+ after project merge
+      (**warning**: API changes)
+    * Do not install `curl` and `python-dev` packages when setuptools
+      is already installed (ponty)
+    * Make package names case-insensitive in python.is_installed
+      (ponty)
+    * Fix pip version parsing when using ``pythonbrew switch``
+* Fix ``require.system.locales`` when a prefix is set
+* Fix require.system.locale() on fresh Ubuntu systems
+* Add optional environment variables in crontab
+* Fix crontab permissions
+* Allow special characters in MySQL password (Régis Behmo)
+* Fix bug with some services not starting correctly (Chris Marinos)
+* Add ``getdevice_by_uuid`` to the disk module (Bruno Adele)
+* Fix implicit directory name in ``git.working_copy`` (iiie)
+* Make ``require.sysctl`` robust to procps start failure
+
+
+Version 0.15.0 (2013-07-25)
+---------------------------
+
+* Fix missing import in ``user.local_home_directory()`` (Sebastien Beal)
+* Improved Arch Linux support:
+    * Fix locale support in Arch Linux (Bruno Adele)
+    * Add support for yaourt package manager in Arch Linux (Bruno Adele)
+* Improvements to the ``redis`` module:
+    * Fix Redis startup after reboot (Victor Perron)
+    * Upgrade default Redis version to 2.6.14
+* Improvements to the ``git`` module:
+    * Add optional force parameter to git pull and checkout (Sebastien Beal)
+* Improvements to the ``python`` module:
+    * Add parameter to use a specific Python interpreter (Bruno Adele)
+    * Stop using PyPI mirrors now that it has a CDN (Dominique Lederer)
+* Debian/Ubuntu improvements:
+    * Add optional version parameter to deb.install() (Anthony Scalisi)
+    * Improved support for installing APT public keys (Santiago Mola)
+* SmartOS improvements (Andreas Kaiser):
+    * Fix md5sum on recent SmartOS
+    * Fix bug in pkg.is_installed with certain package names
+    * Add support for SmartOS in remote system identification
+    * Add support for SmartOS in require.git.command()
+* RedHat improvements:
+    * Fix broken rpm.install() (Sho Shimauchi)
+* Oracle JDK improvements:
+    * Upgrade default version to 7u25-b15 (Sebastien Beal)
+    * Fix Oracle JDK version parsing when OpenJDK is installed
+    * Fix Oracle JDK installation on Debian squeeze (Stéphane Klein)
+* Better tests documentation (thanks to Stéphane Klein)
+* Add require.directories() (Edouard de Labareyre)
+* Add support for Apache web server (Stéphane Klein)
+* Upgrade default Node.js version to 0.10.13
+
 Version 0.14.0 (2013-05-22)
 ---------------------------
 

@@ -11,6 +11,7 @@ from __future__ import with_statement
 from fabric.api import hide, run, settings
 
 from fabtools.utils import run_as_root
+from fabtools.files import getmtime, is_file
 
 
 MANAGER = 'DEBIAN_FRONTEND=noninteractive apt-get'
@@ -50,7 +51,7 @@ def is_installed(pkg_name):
         return False
 
 
-def install(packages, update=False, options=None):
+def install(packages, update=False, options=None, version=None):
     """
     Install one or more packages.
 
@@ -72,18 +73,25 @@ def install(packages, update=False, options=None):
             'libxml2-dev',
         ])
 
+        # Install a specific version
+        fabtools.deb.install('emacs', version='23.3+1-1ubuntu9')
+
     """
     manager = MANAGER
     if update:
         update_index()
     if options is None:
         options = []
+    if version is None:
+        version = ''
+    if version and not isinstance(packages, list):
+        version = '=' + version
     if not isinstance(packages, basestring):
         packages = " ".join(packages)
     options.append("--quiet")
     options.append("--assume-yes")
     options = " ".join(options)
-    cmd = '%(manager)s install %(options)s %(packages)s' % locals()
+    cmd = '%(manager)s install %(options)s %(packages)s%(version)s' % locals()
     run_as_root(cmd, pty=False)
 
 
@@ -146,7 +154,26 @@ def get_selections():
     return selections
 
 
-def add_apt_key(filename, update=True):
+def apt_key_exists(keyid):
+    """
+    Check if the given key id exists in apt keyring.
+    """
+
+    # Command extracted from apt-key source
+    gpg_cmd = 'gpg --ignore-time-conflict --no-options --no-default-keyring --keyring /etc/apt/trusted.gpg'
+
+    with settings(hide('everything'), warn_only=True):
+        res = run('%(gpg_cmd)s --fingerprint %(keyid)s' % locals())
+
+    return res.succeeded
+
+
+def _check_pgp_key(path, keyid):
+    with settings(hide('everything')):
+        return not run('gpg --with-colons %(path)s | cut -d: -f 5 | grep -q \'%(keyid)s$\'' % locals())
+
+
+def add_apt_key(filename=None, url=None, keyid=None, keyserver='subkeys.pgp.net', update=False):
     """
     Trust packages signed with this public key.
 
@@ -154,14 +181,60 @@ def add_apt_key(filename, update=True):
 
         import fabtools
 
-        # Download 3rd party APT public key
-        if not fabtools.is_file('rabbitmq-signing-key-public.asc'):
-            run('wget http://www.rabbitmq.com/rabbitmq-signing-key-public.asc')
+        # Varnish signing key from URL and verify fingerprint)
+        fabtools.deb.add_apt_key(keyid='C4DEFFEB', url='http://repo.varnish-cache.org/debian/GPG-key.txt')
 
-        # Tell APT to trust that key
-        fabtools.deb.add_apt_key('rabbitmq-signing-key-public.asc')
+        # Nginx signing key from default key server (subkeys.pgp.net)
+        fabtools.deb.add_apt_key(keyid='7BD9BF62')
 
+        # From custom key server
+        fabtools.deb.add_apt_key(keyid='7BD9BF62', keyserver='keyserver.ubuntu.com')
+
+        # From a file
+        fabtools.deb.add_apt_key(keyid='7BD9BF62', filename='nginx.asc'
     """
-    run_as_root('apt-key add %(filename)s' % locals())
+
+    if keyid is None:
+        if filename is not None:
+            run_as_root('apt-key add %(filename)s' % locals())
+        elif url is not None:
+            run_as_root('wget %(url)s -O - | apt-key add -' % locals())
+        else:
+            raise ValueError('Either filename, url or keyid must be provided as argument')
+    else:
+        if filename is not None:
+            _check_pgp_key(filename, keyid)
+            run_as_root('apt-key add %(filename)s' % locals())
+        elif url is not None:
+            tmp_key = '/tmp/tmp.fabtools.key.%(keyid)s.key' % locals()
+            run_as_root('wget %(url)s -O %(tmp_key)s' % locals())
+            _check_pgp_key(tmp_key, keyid)
+            run_as_root('apt-key add %(tmp_key)s' % locals())
+        else:
+            keyserver_opt = '--keyserver %(keyserver)s' % locals() if keyserver is not None else ''
+            run_as_root('apt-key adv %(keyserver_opt)s --recv-keys %(keyid)s' % locals())
+
     if update:
         update_index()
+
+
+def last_update_time():
+    """
+    Get the time of last APT index update
+
+    This is the last modification time of ``/var/lib/apt/periodic/fabtools-update-success-stamp``.
+
+    Returns ``-1`` if there was no update before.
+
+    Example::
+
+        import fabtools
+
+        print(fabtools.deb.last_update_time())
+        # 1377603808.02
+
+    """
+    STAMP = '/var/lib/apt/periodic/fabtools-update-success-stamp'
+    if not is_file(STAMP):
+        return -1
+    return getmtime(STAMP)
